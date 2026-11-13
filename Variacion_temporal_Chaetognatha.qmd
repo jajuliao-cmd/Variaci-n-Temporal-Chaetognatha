@@ -1,0 +1,412 @@
+---
+title: "Variación temporal de gusanos flecha (Chaetognatha) en aguas costeras del departamento del Atlántico Caribe colombiano"
+author: "Joel Adryan Juliao Romero"
+format:
+  html:
+    toc: true
+    embed-resources: true
+lang: es
+editor: visual
+bibliography: references.bib
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+## Introducción
+
+Los quetognatos, conocidos comúnmente como gusanos flecha debido a su cuerpo alargado, son animales bilaterales generalmente translucidos, con forma cilíndrica y divididos en tres regiones diferenciadas: cabeza, tronco y cola postanal [@ghirardelli1969]. El filo Chaetognatha figura como un componente importante del zooplancton en cuanto a su abundancia y su papel como enlace entre distintos niveles tróficos, siendo depredadores voraces que a su vez constituyen un grupo significativo dentro de la dieta de las larvas de peces de importancia comercial e invertebrados [@mclelland1989]. Adicionalmente, estos suelen encontrarse como el segundo taxón más abundante en el plancton [@venkataraman2015] y se estima que su biomasa es del 10 % al 30 % con respecto a la de los copépodos, los cuales representan un 35,7 % de la biomasa zooplanctónica a nivel global [@drago2022].
+
+Actualmente hay un total de 132 especies aceptadas dentro del filo Chaetognatha (WoRMS, 2026), de las cuales se estima la presencia de 15 en el mar Caribe colombiano. Entre los estudios, se destaca la única caracterización publicada para el departamento del Atlántico y se obtuvo durante la expedición Rosaura de 1937 a unos 50 km de Puerto Colombia [@colman1959]. No obstante, es necesario recalcar que dicha expedición fue realizada en múltiples estaciones repartidas en todo el océano Atlántico occidental y, de esta manera, hasta el día de hoy no existe un trabajo específico enfocado en analizar a profundidad la distribución de las especies en el Caribe colombiano, así como los factores ecológicos y fisicoquímicos de importancia que pueden influenciar en las mismas.
+
+Factores como la variación en la salinidad y temperatura pueden influir en las poblaciones de quetognatos [@stone2023], siendo estos cambios usuales durante el año, condicionados por los periodos climáticos que se presentan en el Caribe colombiano. Considerando estos parámetros y la importancia de los quetognatos dentro de la cadena trófica, se establece la siguiente pregunta: ¿Cómo influye la temperatura y los periodos climáticos en la densidad y el desarrollo de las especies de quetognatos presentes en aguas someras de un ambiente tropical?
+
+## Metodología
+
+### Origen de los datos
+
+Los datos provienen de una serie de muestreos en aguas costeras del departamento del Atlántico (Caribe colombiano), especificamente la Marina de Puerto Velero, durante un ciclo anual, entre agosto de 2025 y julio de 2026. Cada mes se hicieron dos arrastres horizontales con una red de 300 micras de zooplancton, ambos el mismo día y en la segunda semana del mes, para un total de 24 arrastres. En cada arrastre se registró el volumen de agua filtrado (m³) con un flujómetro Hydro-Bios.
+
+Las muestras se submuestrearon con un fraccionador Folsom. Los quetognatos de la fracción contada se identificaron y se clasificaron en tres estadios de madurez (I, II y III), y el conteo se extrapoló a la muestra completa considerando la dilusión con el Folsom. Algunos individuos rotos o imposibles de identificar quedaron a nivel de familia (Sagittidae), y los estadios I y II de *Parasagitta* solo se identificaron hasta género (*Parasagitta* spp.); *P. friderici* y *P. tenuis* se separaron únicamente en el estadio III. A los individuos intactos se les midió la longitud total (mm).
+
+La temperatura superficial del agua provino de un registro continuo cada dos horas durante el mismo período haciendo uso de un registrador HOBO Pendant. Los meses se agruparon en tres períodos climáticos: húmedo (agosto a noviembre), seco (diciembre a abril) y de transición (mayo a julio).
+
+### Variables
+
+```{r}
+#| label: tbl-variables
+#| tbl-cap: "Variables utilizadas, su tipo y su unidad o categorías."
+#| echo: false
+library(knitr)
+data.frame(
+  Variable = c("Mes", "Arrastre", "Período climático", "Taxón", "Estadio de madurez",
+               "Condición del individuo", "Volumen filtrado", "Conteo extrapolado",
+               "Densidad", "Temperatura superficial", "Longitud total"),
+  Tipo = c("Categórica", "Categórica", "Categórica", "Categórica", "Categórica",
+           "Categórica", "Numérica", "Numérica", "Numérica", "Numérica", "Numérica"),
+  `Unidad o categorías` = c("Agosto a julio", "1 y 2", "Húmedo, seco, de transición",
+                            "Especie, género o familia", "I, II, III", "Intacto, roto",
+                            "m³", "Número de individuos", "ind m⁻³", "°C", "mm"),
+  check.names = FALSE) |>
+  kable(align = "lll")
+```
+
+### Proceso de limpieza
+
+Primero se cargaron los paquetes y se definieron los colores, el orden de los meses y los períodos.
+
+```{r}
+#| label: paquetes
+library(tidyverse)   # manejo de datos y gráficos
+library(readxl)      # leer archivos de Excel
+library(lubridate)   # fechas
+library(ggtext)      # cursivas
+
+options(OutDec = ",")                              # coma como separador decimal
+theme_set(theme_bw(base_family = "Times New Roman"))
+
+meses <- c("Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre", "Enero",
+           "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio")
+periodos <- c("Húmedo", "Seco", "de Transición")
+colores_periodo <- c("Húmedo" = "#9ECAE1", "Seco" = "#FDBE85", "de Transición" = "#A1D99B")
+colores_estadio <- c("I" = "#CBC9E2", "II" = "#9E9AC8", "III" = "#54278F")
+
+# Nombres científicos en cursiva
+cursiva <- function(x) {
+  ifelse(str_starts(x, "Parasagitta spp"), str_replace(x, "Parasagitta", "*Parasagitta*"),
+         ifelse(str_starts(x, "Sagittidae"), x, paste0("*", x, "*")))
+}
+```
+
+Luego se leyeron los tres sets de datos (Densidad, longitud y temperatura), se cambiaron los nombres de las columnas y se ordenaron los datos.
+
+```{r}
+#| label: limpieza
+# Densidad: una fila por arrastre, taxón y estadio
+densidad <- read_excel("Datos-Densidad.xlsx") |>
+  rename(arrastre = Muestra, periodo = Periodo, volumen = `Volumen m3`,
+         conteo = `Extrapolación`) |>
+  mutate(mes = factor(Mes, levels = meses),
+         periodo = factor(periodo, levels = periodos),
+         estadio = na_if(as.character(Estadio), ""),
+         id = paste(mes, arrastre),
+         # nombre del taxón y nombre a nivel de género
+         taxon = case_when(Especie == "Parasagitta spp." ~ "Parasagitta spp. (I-II)",
+                           Especie == "Sagittidae" ~ "Sagittidae (sin identificar)",
+                           TRUE ~ Especie),
+         genero = if_else(str_starts(Especie, "Parasagitta"), "Parasagitta spp.", Especie))
+
+# Una fila por arrastre (24 en total)
+arrastres <- densidad |>
+  distinct(id, mes, arrastre, periodo, volumen)
+
+# Densidad total por arrastre (ind/m3)
+dens_total <- densidad |>
+  group_by(id) |>
+  summarise(conteo = sum(conteo)) |>
+  left_join(arrastres, by = "id") |>
+  mutate(densidad = conteo / volumen)
+
+# Densidad por estadio y taxón (solo individuos con estadio conocido);
+# los taxones que no aparecen en un arrastre se completan con cero
+dens_estadio <- densidad |>
+  filter(!is.na(estadio)) |>
+  group_by(id, genero, estadio) |>
+  summarise(conteo = sum(conteo), .groups = "drop") |>
+  complete(id = arrastres$id, genero, estadio, fill = list(conteo = 0)) |>
+  left_join(arrastres, by = "id") |>
+  mutate(densidad = conteo / volumen)
+
+# Longitud de los individuos intactos
+longitud <- read_excel("Datos-Table1.xlsx") |>
+  rename(condicion = `Condición`, longitud = `Long total (mm)`) |>
+  filter(condicion == "Intacto", Especie != "Sagittidae", !is.na(longitud)) |>
+  mutate(estadio = factor(Estadio, levels = c("I", "II", "III")),
+         taxon = if_else(Especie == "Parasagitta spp.", "Parasagitta spp. (I-II)", Especie))
+
+# Temperatura: promedio diario, solo del período de muestreo (16 ago 2025 a 31 jul 2026)
+temp_dia <- read_excel("Datos-Temperatura.xlsx") |>
+  rename(temp = `Temperatura (°C)`) |>
+  mutate(dia = as_date(Fecha)) |>
+  filter(dia >= as.Date("2025-08-16"), dia <= as.Date("2026-07-31")) |>
+  group_by(dia) |>
+  summarise(temp = mean(temp))
+```
+
+### Análisis de los datos
+
+Los datos se organizaron y analizaron en R. Se calculó estadística descriptiva (media, desviación estándar, mediana, mínimo y máximo) de la temperatura, la densidad y la longitud, por mes, período, taxón y estadio, y los resultados se presentaron en tablas y figuras.
+
+## Resultados
+
+```{r}
+#| label: funciones
+#| echo: false
+# Funciones auxiliares: tablas y números con coma decimal
+tabla <- function(x, ...) kable(x, digits = 2, format.args = list(decimal.mark = ","), ...)
+num <- function(x, d = 1) format(round(x, d), nsmall = d, decimal.mark = ",", trim = TRUE)
+```
+
+### Temperatura superficial
+
+```{r}
+#| label: tbl-temp
+#| tbl-cap: "Temperatura superficial (°C) por período climático: media y desviación estándar de las medias diarias, mínimo y máximo."
+# Se asigna a cada día el período de su mes
+temp_dia <- temp_dia |>
+  mutate(mes = factor(c("Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto",
+                        "Septiembre", "Octubre", "Noviembre", "Diciembre")[month(dia)], levels = meses)) |>
+  left_join(distinct(arrastres, mes, periodo), by = "mes")
+
+temp_dia |>
+  group_by(periodo) |>
+  summarise(Días = n(), Media = mean(temp), DE = sd(temp), Mínimo = min(temp), Máximo = max(temp)) |>
+  rename(Período = periodo) |>
+  tabla()
+```
+
+```{r}
+#| label: temp-mes
+#| echo: false
+temp_mes <- temp_dia |> group_by(mes, periodo) |> summarise(media = mean(temp), de = sd(temp), fecha = median(dia), .groups = "drop")
+tm <- temp_mes |> select(mes, media) |> deframe()                  # media mensual con nombre de mes
+tp <- temp_dia |> group_by(periodo) |> summarise(media = mean(temp)) |> deframe()   # media por período
+```
+
+La temperatura superficial diaria varió entre `r num(min(temp_dia$temp), 2)` y `r num(max(temp_dia$temp), 2)` °C (@tbl-temp). Las medias mensuales más altas se registraron en septiembre y octubre (`r num(tm["Septiembre"])` y `r num(tm["Octubre"])` °C) y la más baja en enero (`r num(tm["Enero"])` °C). La temperatura bajó de octubre a enero, se mantuvo entre `r num(min(tm[c("Enero","Febrero","Marzo","Abril")]))` y `r num(max(tm[c("Enero","Febrero","Marzo","Abril")]))` °C de enero a abril y subió en mayo y junio (@fig-temp). Por período, la media fue mayor en el húmedo (`r num(tp["Húmedo"])` °C) y menor en el seco (`r num(tp["Seco"])` °C).
+
+```{r}
+#| label: fig-temp
+#| fig-cap: "Temperatura superficial: promedio diario (línea gris), media mensual con su desviación estándar (puntos negros) y períodos climáticos (colores de fondo)."
+#| fig-width: 9
+#| fig-height: 4
+# Rectángulos de fondo con los períodos climáticos
+fondo <- data.frame(periodo = periodos,
+                    inicio = as.Date(c("2025-08-01", "2025-12-01", "2026-05-01")),
+                    fin = as.Date(c("2025-12-01", "2026-05-01", "2026-08-01")))
+
+ggplot() +
+  geom_rect(data = fondo, aes(xmin = inicio, xmax = fin, ymin = -Inf, ymax = Inf, fill = periodo)) +
+  geom_line(data = temp_dia, aes(dia, temp), colour = "grey40") +
+  geom_errorbar(data = temp_mes, aes(fecha, ymin = media - de, ymax = media + de), width = 5) +
+  geom_line(data = temp_mes, aes(fecha, media)) +
+  geom_point(data = temp_mes, aes(fecha, media)) +
+  scale_fill_manual(values = colores_periodo, breaks = periodos, name = "Período") +
+  scale_x_date(date_breaks = "1 month", date_labels = "%b", expand = c(0, 0)) +
+  labs(x = "Mes", y = "Temperatura superficial (°C)") +
+  theme(legend.position = "bottom")
+```
+
+### Densidad total
+
+```{r}
+#| label: tbl-dens-mes
+#| tbl-cap: "Densidad total de quetognatos (ind m⁻³) en cada arrastre y promedio mensual."
+dens_total |>
+  select(mes, periodo, arrastre, densidad) |>
+  pivot_wider(names_from = arrastre, values_from = densidad, names_prefix = "Arrastre ") |>
+  mutate(Promedio = (`Arrastre 1` + `Arrastre 2`) / 2) |>
+  arrange(mes) |>
+  rename(Mes = mes, Período = periodo) |>
+  tabla()
+```
+
+```{r}
+#| label: tbl-dens-per
+#| tbl-cap: "Densidad total de quetognatos (ind m⁻³) por período climático (n = número de arrastres)."
+dens_total |>
+  group_by(periodo) |>
+  summarise(n = n(), Media = mean(densidad), DE = sd(densidad), Mediana = median(densidad),
+            Mínimo = min(densidad), Máximo = max(densidad)) |>
+  rename(Período = periodo) |>
+  tabla()
+```
+
+```{r}
+#| label: dens-texto
+#| echo: false
+dm <- dens_total |> group_by(mes) |> summarise(d = mean(densidad)) |> deframe()       # promedio por mes
+dp <- dens_total |> group_by(periodo) |> summarise(d = mean(densidad)) |> deframe()   # promedio por período
+```
+
+La densidad total promedio de los 24 arrastres fue de `r num(mean(dens_total$densidad))` ind m⁻³. El menor promedio mensual se observó en agosto (`r num(dm["Agosto"])` ind m⁻³) y el mayor en enero (`r num(dm["Enero"])` ind m⁻³). En el período húmedo los promedios mensuales fueron bajos (de `r num(dm["Agosto"])` a `r num(dm["Noviembre"])` ind m⁻³); en el seco aumentaron en diciembre y enero (`r num(dm["Diciembre"])` y `r num(dm["Enero"])` ind m⁻³) y bajaron en febrero (`r num(dm["Febrero"])` ind m⁻³); en la transición subieron de mayo (`r num(dm["Mayo"])`) a julio (`r num(dm["Julio"])` ind m⁻³). La densidad media por período fue mayor en el seco (`r num(dp["Seco"])`), seguida de la transición (`r num(dp["de Transición"])`) y el húmedo (`r num(dp["Húmedo"])` ind m⁻³) (@tbl-dens-mes, @tbl-dens-per, @fig-dens).
+
+```{r}
+#| label: fig-dens
+#| fig-cap: "Densidad total de quetognatos por mes. En cada mes, la barra izquierda es el arrastre 1 y la derecha el arrastre 2. Eje y en escala de raíz cuadrada."
+#| fig-width: 10
+#| fig-height: 4.5
+ggplot(dens_total, aes(mes, densidad, fill = periodo, group = arrastre)) +
+  geom_col(position = "dodge", colour = "black") +
+  geom_text(aes(label = round(densidad)), position = position_dodge(width = 0.9), vjust = -0.3, size = 3) +
+  facet_grid(~ periodo, scales = "free_x", space = "free_x") +
+  scale_y_sqrt() +
+  scale_fill_manual(values = colores_periodo) +
+  guides(fill = "none") +
+  labs(x = "Mes", y = expression("Densidad total (ind m"^-3*")"))
+```
+
+### Composición taxonómica
+
+```{r}
+#| label: tbl-comp
+#| tbl-cap: "Densidad media (ind m⁻³; 24 arrastres) y contribución porcentual de cada taxón a la densidad total."
+composicion_total <- densidad |>
+  group_by(id, taxon) |>
+  summarise(dens = sum(conteo / volumen), .groups = "drop") |>
+  complete(id = arrastres$id, taxon, fill = list(dens = 0)) |>
+  group_by(taxon) |>
+  summarise(`Densidad media` = mean(dens), DE = sd(dens)) |>
+  mutate(`Contribución (%)` = 100 * `Densidad media` / sum(`Densidad media`)) |>
+  arrange(desc(`Densidad media`))
+
+composicion_total |>
+  mutate(Taxón = cursiva(taxon)) |>
+  select(Taxón, `Densidad media`, DE, `Contribución (%)`) |>
+  tabla()
+```
+
+```{r}
+#| label: comp-texto
+#| echo: false
+ct <- composicion_total
+```
+
+`r cursiva(ct$taxon[1])` fue el taxón con mayor contribución a la densidad total (`r num(ct$"Contribución (%)"[1])` %), seguido de `r cursiva(ct$taxon[2])` (`r num(ct$"Contribución (%)"[2])` %); la menor contribución fue la de `r cursiva(ct$taxon[nrow(ct)])` (`r num(ct$"Contribución (%)"[nrow(ct)], 2)` %) (@tbl-comp). Por mes (@fig-comp), *Sagitta bipunctata* predominó de agosto a octubre y en enero (hasta 80 % en este último), y *Parasagitta* spp. (I-II) predominó entre febrero y julio, con hasta 97 % en julio. Los individuos de Sagittidae sin identificar alcanzaron su mayor contribución en septiembre (45 %).
+
+```{r}
+#| label: fig-comp
+#| fig-cap: "Contribución porcentual de cada taxón a la densidad total de cada mes (suma de los dos arrastres). Se muestran los aportes de 7 % o más."
+#| fig-width: 10.5
+#| fig-height: 5.6
+colores_taxon <- c("Sagitta bipunctata" = "#0072B2", "Parasagitta spp. (I-II)" = "#E31A1C",
+                   "Decipisagitta decipiens" = "#009E73", "Parasagitta friderici" = "#99000D",
+                   "Flaccisagitta enflata" = "#CC79A7", "Krohnitta subtilis" = "#8C510A",
+                   "Parasagitta tenuis" = "#FB9A99", "Aidanosagitta neglecta" = "#17BECF",
+                   "Ferosagitta hispida" = "#F0E442", "Sagittidae (sin identificar)" = "#999999")
+
+porcentaje_mes <- densidad |>
+  group_by(mes, periodo, taxon) |>
+  summarise(dens = sum(conteo / volumen), .groups = "drop") |>
+  group_by(mes) |>
+  mutate(porcentaje = 100 * dens / sum(dens)) |>
+  ungroup() |>
+  mutate(taxon = factor(taxon, levels = names(colores_taxon)),
+         etiqueta = ifelse(porcentaje >= 7, round(porcentaje), ""))   # solo se rotulan aportes >= 7 %
+
+ggplot(porcentaje_mes, aes(mes, porcentaje, fill = taxon)) +
+  geom_col(colour = "white") +
+  geom_text(aes(label = etiqueta), position = position_stack(vjust = 0.5), colour = "white", size = 3) +
+  facet_grid(~ periodo, scales = "free_x", space = "free_x") +
+  scale_fill_manual(values = colores_taxon, labels = cursiva, name = NULL) +
+  labs(x = "Mes", y = "Contribución a la densidad total (%)") +
+  theme(legend.position = "bottom", legend.text = element_markdown())
+```
+
+### Estructura de estadios
+
+```{r}
+#| label: tbl-est-per
+#| tbl-cap: "Densidad media (ind m⁻³) y porcentaje de cada estadio por período, sumando todos los individuos con estadio conocido."
+dens_estadio |>
+  group_by(id, periodo, estadio) |>
+  summarise(densidad = sum(densidad), .groups = "drop") |>
+  group_by(periodo, estadio) |>
+  summarise(media = mean(densidad), .groups = "drop") |>
+  group_by(periodo) |>
+  mutate(porcentaje = 100 * media / sum(media)) |>
+  ungroup() |>
+  mutate(valor = paste0(num(media), " (", num(porcentaje, 0), " %)")) |>
+  select(Período = periodo, estadio, valor) |>
+  pivot_wider(names_from = estadio, values_from = valor, names_prefix = "Estadio ") |>
+  kable(align = "lrrr")
+```
+
+```{r}
+#| label: tbl-est-tax
+#| tbl-cap: "Densidad media anual (ind m⁻³; 24 arrastres) por estadio y taxón."
+dens_estadio |>
+  filter(genero != "Sagittidae") |>       # la tabla es por taxón: se excluye la familia sin identificar
+  group_by(genero, estadio) |>
+  summarise(media = mean(densidad), .groups = "drop") |>
+  pivot_wider(names_from = estadio, values_from = media, names_prefix = "Estadio ") |>
+  mutate(Total = `Estadio I` + `Estadio II` + `Estadio III`, Taxón = cursiva(genero)) |>
+  arrange(desc(Total)) |>
+  select(Taxón, starts_with("Estadio"), Total) |>
+  tabla()
+```
+
+```{r}
+#| label: est-texto
+#| echo: false
+est <- dens_estadio |> group_by(id, periodo, estadio) |> summarise(d = sum(densidad), .groups = "drop") |>
+  group_by(periodo, estadio) |> summarise(m = mean(d), .groups = "drop") |> group_by(periodo) |> mutate(p = 100 * m / sum(m))
+e3 <- filter(est, estadio == "III")
+```
+
+El estadio II fue el más abundante en los tres períodos (`r num(min(filter(est, estadio == "II")$p), 0)` % a `r num(max(filter(est, estadio == "II")$p), 0)` % de los individuos). El estadio III tuvo su mayor densidad en el período seco (`r num(e3$m[e3$periodo == "Seco"])` ind m⁻³, `r num(e3$p[e3$periodo == "Seco"], 0)` %) y su menor densidad en el húmedo (`r num(e3$m[e3$periodo == "Húmedo"])` ind m⁻³); en la transición fue `r num(e3$m[e3$periodo == "de Transición"])` ind m⁻³ (`r num(e3$p[e3$periodo == "de Transición"], 0)` %). El estadio I fue más abundante en la transición y en el seco que en el húmedo (@tbl-est-per). Por taxón, *Sagitta bipunctata* y *Parasagitta* spp. tuvieron las mayores densidades en los tres estadios (@tbl-est-tax, @fig-est).
+
+```{r}
+#| label: fig-est
+#| fig-cap: "Densidad promedio de los dos arrastres por estadio, taxón y mes. El eje y es diferente en cada taxón."
+#| fig-width: 10
+#| fig-height: 11
+dens_estadio |>
+  filter(genero != "Sagittidae") |>
+  group_by(genero, estadio, mes, periodo) |>
+  summarise(densidad = mean(densidad), .groups = "drop") |>
+  mutate(genero = fct_reorder(cursiva(genero), densidad, .fun = sum, .desc = TRUE)) |>
+  ggplot(aes(mes, densidad, fill = estadio)) +
+  geom_col(colour = "black", linewidth = 0.2) +
+  facet_grid(genero ~ periodo, scales = "free", space = "free_x") +
+  scale_fill_manual(values = colores_estadio, name = "Estadio") +
+  labs(x = "Mes", y = expression("Densidad promedio (ind m"^-3*")")) +
+  theme(legend.position = "bottom", strip.text.y = element_markdown(angle = 0))
+```
+
+### Longitud de los individuos
+
+```{r}
+#| label: tbl-long
+#| tbl-cap: "Longitud total (mm) de los individuos intactos por taxón (todos los estadios), ordenados por la mediana."
+longitud |>
+  group_by(taxon) |>
+  summarise(n = n(), Media = mean(longitud), DE = sd(longitud), Mediana = median(longitud),
+            Mínimo = min(longitud), Máximo = max(longitud)) |>
+  arrange(desc(Mediana)) |>
+  mutate(Taxón = cursiva(taxon)) |>
+  select(Taxón, everything(), -taxon) |>
+  tabla()
+```
+
+```{r}
+#| label: long-texto
+#| echo: false
+lt <- longitud |> group_by(taxon) |> summarise(n = n(), mediana = median(longitud)) |> filter(n >= 10) |> arrange(desc(mediana))
+```
+
+Se midieron `r nrow(longitud)` individuos intactos. La mayor longitud mediana fue la de `r cursiva(lt$taxon[1])` (`r num(lt$mediana[1], 2)` mm) y la menor la de `r cursiva(lt$taxon[nrow(lt)])` (`r num(lt$mediana[nrow(lt)], 2)` mm), entre los taxones con 10 o más individuos (@tbl-long). En todos los taxones con más de un estadio, la longitud mediana fue mayor en los estadios más avanzados (@fig-long).
+
+```{r}
+#| label: fig-long
+#| fig-cap: "Longitud total por estadio de madurez y taxón (individuos intactos). El número sobre cada caja es la cantidad de individuos."
+#| fig-width: 9
+#| fig-height: 7
+n_est <- longitud |> count(taxon, estadio)
+
+longitud |>
+  mutate(taxon = cursiva(taxon)) |>
+  ggplot(aes(estadio, longitud, fill = estadio)) +
+  geom_boxplot(outlier.size = 0.8) +
+  geom_text(data = mutate(n_est, taxon = cursiva(taxon)),
+            aes(x = estadio, y = Inf, label = paste0("n = ", n)), vjust = 1.5, size = 3, inherit.aes = FALSE) +
+  facet_wrap(~ taxon, scales = "free_x", ncol = 3) +
+  scale_fill_manual(values = colores_estadio) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.12))) +
+  guides(fill = "none") +
+  theme(strip.text = element_markdown()) +
+  labs(x = "Estadio", y = "Longitud total (mm)")
+```
+
+## Referencias
